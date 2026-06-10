@@ -30,24 +30,19 @@ pub fn main(init: std.process.Init) !void {
             break;
         }
     }
+
     const dir = try std.Io.Dir.cwd().openDir(init.io, path, .{.iterate = true});
     defer dir.close(init.io); 
-    
-    const allocator = init.gpa;
-    var w1 = try dir.walk(allocator);
-    defer w1.deinit();
-    while (try w1.next(init.io)) |entry| {
-        if (entry.depth() > 1) {
-            continue;
-        }
+
+    var dir_iter = dir.iterateAssumeFirstIteration();
+    while (try dir_iter.next(init.io)) |entry| {
         switch(entry.kind) {
             .file, .directory => {
-                if (!show_all and entry.basename[0] == '.') continue;
-                print("{s}\n", .{entry.basename});
+                if (!show_all and entry.name[0] == '.') continue;
+                print("{s}\n", .{entry.name});
             },
             else => {},
         }
     }
-
     return;
 }
