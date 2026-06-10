@@ -1,5 +1,4 @@
 const std = @import("std");
-const print = std.debug.print;
 
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
@@ -18,7 +17,7 @@ pub fn main(init: std.process.Init) !void {
                         long_format = true;
                     },
                     else => {
-                        print("usage: ls [-al] [path]\n", .{});
+                        std.debug.print("usage: ls [-al] [path]\n", .{});
                         std.process.exit(1);
                         return;
                     }
@@ -35,11 +34,17 @@ pub fn main(init: std.process.Init) !void {
     defer dir.close(init.io); 
 
     var dir_iter = dir.iterateAssumeFirstIteration();
+
+    var stdout_buffer: [4096]u8 = undefined;
+    var stdout_file_writer: std.Io.File.Writer = .init(.stdout(), init.io, &stdout_buffer);
+    const stdout_writer = &stdout_file_writer.interface;
+
     while (try dir_iter.next(init.io)) |entry| {
         switch(entry.kind) {
             .file, .directory => {
                 if (!show_all and entry.name[0] == '.') continue;
-                print("{s}\n", .{entry.name});
+                try stdout_writer.print("{s}\n", .{entry.name});
+                try stdout_writer.flush();
             },
             else => {},
         }
