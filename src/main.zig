@@ -100,11 +100,17 @@ pub fn main(init: std.process.Init) !void {
     const stdout_writer = &stdout_file_writer.interface;
 
     var dir_iter = dir.iterateAssumeFirstIteration();
+
     if (show_all) {
         inline for (.{".", ".."}) |name| {
-            try print_long(stdout_writer, dir, name);
+            if (show_long) {
+                try print_long(stdout_writer, dir, name);
+            } else {
+                try stdout_writer.print("{s} ", .{name});
+            }
         }
     }
+
     while (try dir_iter.next(init.io)) |entry| {
         if (!show_all and entry.name[0] == '.') continue;
         if (show_long) {
@@ -118,7 +124,7 @@ pub fn main(init: std.process.Init) !void {
                 else => {}
             }
         } else {
-            try stdout_writer.print("{s}\n", .{entry.name});
+            try stdout_writer.print("{s} ", .{entry.name});
             try stdout_writer.flush();
         }
     }
