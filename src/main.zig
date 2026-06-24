@@ -1,7 +1,6 @@
 const std = @import("std");
 const linux = std.os.linux;
 const POSIX_S = std.posix.S;
-const zeit = @import("zeit");
 
 pub fn make_mode_human_readable(mode: u16) [10:0] u8 {
     var str: [10:0] u8 = std.mem.zeroes([10:0]u8);
