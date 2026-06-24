@@ -42,6 +42,27 @@ pub fn format_unix_time(epoch_seconds: i64) ![16]u8 {
     return buf;
 }
 
+pub fn print_long(stdout_writer: *std.Io.Writer, dir: std.Io.Dir, name: []const u8) !void {
+    var statx: linux.Statx = undefined;
+    var name_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const name_z = std.fmt.bufPrintSentinel(&name_buf, "{s}", .{name}, 0) catch return error.NameTooLong;
+
+    const errno = linux.errno(linux.statx(
+            dir.handle,
+            name_z,
+            linux.AT.EMPTY_PATH,
+            .{ .MODE = true, .GID = true, .UID = true, .MTIME = true},
+            &statx
+            ));
+
+    switch (errno) {
+        .SUCCESS => {},
+        else => return error.StatFailed,
+    }
+    try stdout_writer.print("{s} {d: >4} {d: >4} {d: >4} {s} {s}\n", .{make_mode_human_readable(statx.mode),  statx.gid, statx.uid, statx.size, try format_unix_time(statx.mtime.sec), name});
+    try stdout_writer.flush();
+}
+
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     var show_all = false;
@@ -80,47 +101,20 @@ pub fn main(init: std.process.Init) !void {
     const stdout_writer = &stdout_file_writer.interface;
 
     var dir_iter = dir.iterateAssumeFirstIteration();
+    if (show_all) {
+        inline for (.{".", ".."}) |name| {
+            try print_long(stdout_writer, dir, name);
+        }
+    }
     while (try dir_iter.next(init.io)) |entry| {
         if (!show_all and entry.name[0] == '.') continue;
         if (show_long) {
-            var statx: linux.Statx = undefined;
             switch(entry.kind) {
                 .directory => {
-                    const errno = linux.errno(linux.statx(
-                            dir.handle,
-                            "",
-                            linux.AT.EMPTY_PATH,
-                            .{ .MODE = true, .GID = true, .UID = true, .MTIME = true},
-                            &statx
-                            ));
-
-                    switch (errno) {
-                        .SUCCESS => {},
-                        else => return error.StatFailed,
-                    }
-                    try stdout_writer.print("{s} {x} {x} {s} {s}\n", .{make_mode_human_readable(statx.mode), statx.gid, statx.uid, try format_unix_time(statx.mtime.sec), entry.name});
-                    try stdout_writer.flush();
+                    try print_long(stdout_writer, dir, entry.name);
                 },
                 .file => {
-                    var name_buf: [std.fs.max_path_bytes]u8 = undefined;
-                    const name_z = std.fmt.bufPrintSentinel(&name_buf, "{s}", .{entry.name}, 0) catch return error.NameTooLong;
-
-                    const errno = linux.errno(linux.statx(
-                            dir.handle,
-                            name_z,
-                            linux.AT.EMPTY_PATH,
-                            .{ .MODE = true, .GID = true, .UID = true, .MTIME = true},
-                            &statx
-                            ));
-
-                    switch (errno) {
-                        .SUCCESS => {},
-                        else => return error.StatFailed,
-                    }
-                    
-
-                    try stdout_writer.print("{s} {x} {x} {s} {s}\n", .{make_mode_human_readable(statx.mode), statx.gid, statx.uid, try format_unix_time(statx.mtime.sec), entry.name});
-                    try stdout_writer.flush();
+                    try print_long(stdout_writer, dir, entry.name);
                 },
                 else => {}
             }
